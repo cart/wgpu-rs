@@ -336,32 +336,42 @@ impl framework::Example for Example {
         frame: &wgpu::SwapChainOutput,
         device: &wgpu::Device,
     ) -> wgpu::CommandBuffer {
-        let mut encoder =
-            device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
-        {
-            let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
-                    attachment: &frame.view,
-                    resolve_target: None,
-                    load_op: wgpu::LoadOp::Clear,
-                    store_op: wgpu::StoreOp::Store,
-                    clear_color: wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    },
-                }],
-                depth_stencil_attachment: None,
-            });
-            rpass.set_pipeline(&self.pipeline);
-            rpass.set_bind_group(0, &self.bind_group, &[]);
-            rpass.set_index_buffer(&self.index_buf, 0, 0);
-            rpass.set_vertex_buffer(0, &self.vertex_buf, 0, 0);
-            rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
-        }
+        let (sender, receiver) = crossbeam_channel::bounded(1);
+        crossbeam_utils::thread::scope(|s| {
+            let sender = sender.clone();
+            s.spawn(move |_| {
+                let mut encoder =
+                    device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: None });
+                {
+                    let mut rpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        color_attachments: &[wgpu::RenderPassColorAttachmentDescriptor {
+                            attachment: &frame.view,
+                            resolve_target: None,
+                            load_op: wgpu::LoadOp::Clear,
+                            store_op: wgpu::StoreOp::Store,
+                            clear_color: wgpu::Color {
+                                r: 0.1,
+                                g: 0.2,
+                                b: 0.3,
+                                a: 1.0,
+                            },
+                        }],
+                        depth_stencil_attachment: None,
+                    });
+                    rpass.set_pipeline(&self.pipeline);
+                    rpass.set_bind_group(0, &self.bind_group, &[]);
+                    rpass.set_index_buffer(&self.index_buf, 0, 0);
+                    rpass.set_vertex_buffer(0, &self.vertex_buf, 0, 0);
+                    rpass.draw_indexed(0..self.index_count as u32, 0, 0..1);
+                }
 
-        encoder.finish()
+                sender.send(encoder.finish()).unwrap();
+            });
+        })
+        .unwrap();
+
+        let command_buffer = receiver.recv().unwrap();
+        command_buffer
     }
 }
 

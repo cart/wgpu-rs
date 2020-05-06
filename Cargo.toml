@@ -51,7 +51,8 @@ png = "0.15"
 winit = { version = "0.22.1", features = ["web-sys"] }
 rand = { version = "0.7.2", features = ["wasm-bindgen"] }
 bytemuck = "1"
-
+crossbeam-utils = "0.7.2"
+crossbeam-channel = "0.4.2"
 [[example]]
 name="hello-compute"
 path="examples/hello-compute/main.rs"
